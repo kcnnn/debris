@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xactimate Waste Weight Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #ffffff;
+            color: #1a1a1a;
+            min-height: 100vh;
+        }
+
+        .header {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            padding: 1.5rem 2rem;
+            border-bottom: 4px solid #dc2626;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            color: #a0a0a0;
+            margin-top: 0.25rem;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .upload-section {
+            background-color: #fafafa;
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .upload-section:hover {
+            border-color: #dc2626;
+            background-color: #fef2f2;
+        }
+
+        .upload-section.dragover {
+            border-color: #dc2626;
+            background-color: #fef2f2;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1rem;
+            background-color: #1a1a1a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-icon svg {
+            width: 32px;
+            height: 32px;
+            color: #ffffff;
+        }
+
+        .upload-section h2 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #1a1a1a;
+        }
+
+        .upload-section p {
+            color: #666;
+            margin-bottom: 1.5rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            background-color: #dc2626;
+            color: #ffffff;
+            padding: 0.875rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .upload-btn:hover {
+            background-color: #b91c1c;
+        }
+
+        .upload-btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .file-name {
+            margin-top: 1rem;
+            color: #1a1a1a;
+            font-weight: 500;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 1.5rem;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #dc2626;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary-card.highlight {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            border: none;
+        }
+
+        .summary-card.highlight .card-label {
+            color: #a0a0a0;
+        }
+
+        .summary-card.accent {
+            border-left: 4px solid #dc2626;
+        }
+
+        .card-label {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .card-value.red {
+            color: #dc2626;
+        }
+
+        .card-subtext {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #dc2626;
+            display: inline-block;
+        }
+
+        .table-container {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background-color: #fafafa;
+        }
+
+        .weight-value {
+            font-weight: 600;
+            color: #dc2626;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .tag-removal {
+            background-color: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
+        .tag-material {
+            background-color: #f3f4f6;
+            color: #1a1a1a;
+            border: 1px solid #e5e7eb;
+        }
+
+        .error-message {
+            display: none;
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .reset-btn {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 1rem;
+        }
+
+        .reset-btn:hover {
+            background-color: #333;
+        }
+
+        .no-items {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+            font-size: 0.875rem;
+            border-top: 1px solid #e5e7eb;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .upload-section {
+                padding: 2rem 1rem;
+            }
+
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+
+            .table-container {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 600px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Xactimate Waste Weight Calculator</h1>
+        <p>Upload an Xactimate estimate PDF to calculate total waste weight from removal items</p>
+    </header>
+
+    <main class="container">
+        <div class="upload-section" id="dropZone">
+            <div class="upload-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+            </div>
+            <h2>Upload Xactimate PDF</h2>
+            <p>Drag and drop your file here, or click to browse</p>
+            <input type="file" id="fileInput" class="file-input" accept=".pdf">
+            <button class="upload-btn" id="browseBtn">Choose File</button>
+            <div class="file-name" id="fileName"></div>
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Analyzing PDF...</p>
+            </div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="results" id="results">
+            <div class="summary-cards">
+                <div class="summary-card highlight">
+                    <div class="card-label">Total Waste Weight</div>
+                    <div class="card-value" id="totalWeight">0</div>
+                    <div class="card-subtext" id="totalTons"></div>
+                </div>
+                <div class="summary-card accent">
+                    <div class="card-label">Removal Items Found</div>
+                    <div class="card-value red" id="removalCount">0</div>
+                    <div class="card-subtext">items identified for removal</div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-label">Total Line Items</div>
+                    <div class="card-value" id="totalItems">0</div>
+                    <div class="card-subtext">in the estimate</div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-label">Matched Materials</div>
+                    <div class="card-value" id="matchedCount">0</div>
+                    <div class="card-subtext">with known weights</div>
+                </div>
+            </div>
+
+            <h3 class="section-title">Waste Breakdown</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit</th>
+                            <th>Material Type</th>
+                            <th>Weight/Unit</th>
+                            <th>Total Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wasteTable">
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="unmatchedSection" style="display: none;">
+                <h3 class="section-title">Unmatched Items (Estimated)</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                                <th>Est. Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unmatchedTable">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <button class="reset-btn" id="resetBtn">Upload Another PDF</button>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Weights are estimates based on typical material specifications. Actual weights may vary.</p>
+    </footer>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const browseBtn = document.getElementById('browseBtn');
+        const fileName = document.getElementById('fileName');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const errorMessage = document.getElementById('errorMessage');
+        const resetBtn = document.getElementById('resetBtn');
+
+        // Event listeners
+        browseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleFileSelect);
+        resetBtn.addEventListener('click', resetForm);
+
+        // Drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                showError('Please upload a PDF file.');
+                return;
+            }
+
+            fileName.textContent = file.name;
+            loading.classList.add('show');
+            errorMessage.classList.remove('show');
+            results.classList.remove('show');
+            browseBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.classList.remove('show');
+                browseBtn.disabled = false;
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    displayResults(data);
+                }
+            })
+            .catch(error => {
+                loading.classList.remove('show');
+                browseBtn.disabled = false;
+                showError('Error processing file. Please try again.');
+                console.error('Error:', error);
+            });
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('show');
+        }
+
+        function displayResults(data) {
+            results.classList.add('show');
+
+            // Update summary cards
+            const waste = data.waste_summary;
+            document.getElementById('totalWeight').textContent = formatNumber(waste.total_weight_lbs) + ' lbs';
+            document.getElementById('totalTons').textContent = waste.total_weight_tons.toFixed(2) + ' tons';
+            document.getElementById('removalCount').textContent = data.removal_items_found;
+            document.getElementById('totalItems').textContent = data.total_line_items;
+            document.getElementById('matchedCount').textContent = waste.waste_items.length;
+
+            // Populate waste table
+            const wasteTable = document.getElementById('wasteTable');
+            wasteTable.innerHTML = '';
+
+            if (waste.waste_items.length === 0) {
+                wasteTable.innerHTML = '<tr><td colspan="6" class="no-items">No matched removal items found</td></tr>';
+            } else {
+                waste.waste_items.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${escapeHtml(item.description)}</td>
+                        <td>${formatNumber(item.quantity)}</td>
+                        <td>${escapeHtml(item.unit)}</td>
+                        <td><span class="tag tag-material">${escapeHtml(item.material_type)}</span></td>
+                        <td>${item.weight_per_unit} lbs</td>
+                        <td class="weight-value">${formatNumber(item.total_weight)} lbs</td>
+                    `;
+                    wasteTable.appendChild(row);
+                });
+            }
+
+            // Populate unmatched table
+            const unmatchedSection = document.getElementById('unmatchedSection');
+            const unmatchedTable = document.getElementById('unmatchedTable');
+            
+            if (waste.unmatched_items.length > 0) {
+                unmatchedSection.style.display = 'block';
+                unmatchedTable.innerHTML = '';
+                
+                waste.unmatched_items.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${escapeHtml(item.description)}</td>
+                        <td>${formatNumber(item.quantity)}</td>
+                        <td>${escapeHtml(item.unit)}</td>
+                        <td class="weight-value">${formatNumber(item.estimated_weight)} lbs</td>
+                    `;
+                    unmatchedTable.appendChild(row);
+                });
+            } else {
+                unmatchedSection.style.display = 'none';
+            }
+        }
+
+        function resetForm() {
+            fileInput.value = '';
+            fileName.textContent = '';
+            results.classList.remove('show');
+            errorMessage.classList.remove('show');
+        }
+
+        function formatNumber(num) {
+            return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
