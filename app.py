@@ -149,32 +149,62 @@ def parse_xactimate_pdf(file_bytes):
     
     lines = full_text.split('\n')
     
-    # Pattern for Xactimate line items
-    # Looking for: number. description quantity unit price...
+    # Multiple patterns for different Xactimate formats
     patterns = [
-        # Standard format: 1. Description 100.00 SF $1,234.56
-        r'^(\d+)\.\s+(.+?)\s+([\d,]+\.?\d*)\s+([A-Z]{2,4})\s+',
-        # Alternative format
-        r'^(\d+)\.\s*([^0-9]+?)\s+([\d,]+\.?\d*)\s+([A-Z]{2,4})',
+        # Format: 1. Description 100.00 SF 1,234.56
+        r'^(\d+)\.\s+(.+?)\s+([\d,]+\.?\d*)\s+(SF|SQ|LF|EA|HR|SY|CF|CY|GAL|LS)\s',
+        # Format with line number and code: 1. RFG LABO - Description...
+        r'^(\d+)\.\s+([A-Z]{2,6}\s+[A-Z]{2,6}\s*[-–]\s*.+?)\s+([\d,]+\.?\d*)\s+(SF|SQ|LF|EA|HR|SY|CF|CY|GAL|LS)',
+        # Format: Description quantity unit (no line number)
+        r'^([A-Z][^0-9]{10,}?)\s+([\d,]+\.?\d*)\s+(SF|SQ|LF|EA|HR|SY|CF|CY|GAL|LS)\s',
+        # Xactimate code format: RFG LABO Tear off...
+        r'^([A-Z]{2,6}\s+[A-Z]{2,6})\s+(.+?)\s+([\d,]+\.?\d*)\s+(SF|SQ|LF|EA|HR|SY|CF|CY|GAL|LS)',
     ]
+    
+    seen_descriptions = set()
     
     for line in lines:
         line = line.strip()
-        if not line:
+        if not line or len(line) < 10:
+            continue
+        
+        # Skip header/footer lines
+        if any(skip in line.lower() for skip in ['page ', 'total', 'subtotal', 'grand total', 'claim #', 'date of loss']):
             continue
             
         for pattern in patterns:
-            match = re.match(pattern, line)
+            match = re.search(pattern, line, re.IGNORECASE)
             if match:
                 try:
-                    line_number = match.group(1)
-                    description = match.group(2).strip()
-                    quantity_str = match.group(3)
-                    unit = match.group(4)
+                    groups = match.groups()
+                    
+                    if len(groups) == 4:
+                        # Pattern with line number
+                        if groups[0].isdigit():
+                            line_number = groups[0]
+                            description = groups[1].strip()
+                            quantity_str = groups[2]
+                            unit = groups[3].upper()
+                        else:
+                            line_number = '?'
+                            description = (groups[0] + ' ' + groups[1]).strip()
+                            quantity_str = groups[2]
+                            unit = groups[3].upper()
+                    else:
+                        line_number = '?'
+                        description = groups[0].strip()
+                        quantity_str = groups[1]
+                        unit = groups[2].upper()
                     
                     quantity = float(quantity_str.replace(',', ''))
                     
-                    if quantity > 0 and description:
+                    # Skip if we've seen this exact description (avoid duplicates)
+                    desc_key = description.lower()[:50]
+                    if desc_key in seen_descriptions:
+                        continue
+                    seen_descriptions.add(desc_key)
+                    
+                    if quantity > 0 and len(description) > 3:
                         line_items.append({
                             'line_number': line_number,
                             'description': description,
@@ -186,25 +216,35 @@ def parse_xactimate_pdf(file_bytes):
                     continue
                 break
     
-    # If no items found with patterns, try extracting any removal-related text
-    if not line_items:
-        for line in lines:
-            if any(kw in line.lower() for kw in REMOVAL_KEYWORDS):
-                # Try to extract quantity and unit
-                qty_match = re.search(r'([\d,]+\.?\d*)\s*([A-Z]{2,4})', line)
-                if qty_match:
-                    try:
-                        quantity = float(qty_match.group(1).replace(',', ''))
-                        unit = qty_match.group(2)
+    # Secondary pass: look for removal-related lines we might have missed
+    for line in lines:
+        line_lower = line.lower()
+        if any(kw in line_lower for kw in REMOVAL_KEYWORDS):
+            # Check if we already captured this
+            already_found = any(item['description'].lower()[:30] in line_lower for item in line_items)
+            if already_found:
+                continue
+                
+            # Try to extract quantity and unit
+            qty_match = re.search(r'([\d,]+\.?\d+)\s*(SF|SQ|LF|EA|HR|SY)', line, re.IGNORECASE)
+            if qty_match:
+                try:
+                    quantity = float(qty_match.group(1).replace(',', ''))
+                    unit = qty_match.group(2).upper()
+                    
+                    # Extract a reasonable description
+                    desc = line[:100].strip()
+                    
+                    if quantity > 0:
                         line_items.append({
                             'line_number': '?',
-                            'description': line[:100],
+                            'description': desc,
                             'quantity': quantity,
                             'unit': unit,
                             'is_removal': True
                         })
-                    except ValueError:
-                        pass
+                except ValueError:
+                    pass
     
     return line_items, full_text
 
@@ -277,12 +317,6 @@ def upload_pdf():
         file_bytes = file.read()
         line_items, raw_text = parse_xactimate_pdf(file_bytes)
         
-        if not line_items:
-            return jsonify({
-                'error': 'No line items found in PDF. Please ensure this is a valid Xactimate estimate.',
-                'raw_text_preview': raw_text[:2000] if raw_text else 'No text extracted'
-            }), 400
-        
         waste_data = calculate_waste_weight(line_items)
         
         return jsonify({
@@ -291,11 +325,34 @@ def upload_pdf():
             'total_line_items': len(line_items),
             'removal_items_found': len([i for i in line_items if i['is_removal']]),
             'waste_summary': waste_data,
-            'all_line_items': line_items
+            'all_line_items': line_items,
+            'raw_text_preview': raw_text[:5000] if raw_text else 'No text extracted'
         })
         
     except Exception as e:
-        return jsonify({'error': f'Error processing PDF: {str(e)}'}), 500
+        import traceback
+        return jsonify({'error': f'Error processing PDF: {str(e)}', 'trace': traceback.format_exc()}), 500
+
+
+@app.route('/debug', methods=['POST'])
+def debug_pdf():
+    """Debug endpoint to see raw PDF text extraction."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    file_bytes = file.read()
+    
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        pages_text = []
+        for i, page in enumerate(pdf.pages):
+            text = page.extract_text()
+            pages_text.append({
+                'page': i + 1,
+                'text': text if text else 'No text extracted'
+            })
+    
+    return jsonify({'pages': pages_text})
 
 
 if __name__ == '__main__':

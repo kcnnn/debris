@@ -316,6 +316,48 @@
             color: #666;
         }
 
+        .toggle-btn {
+            background-color: #f3f4f6;
+            color: #1a1a1a;
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            margin-bottom: 1rem;
+        }
+
+        .toggle-btn:hover {
+            background-color: #e5e7eb;
+        }
+
+        .raw-text-container {
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            max-height: 400px;
+            overflow: auto;
+        }
+
+        .raw-text-container pre {
+            color: #a0a0a0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.75rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+        }
+
+        .removal-yes {
+            color: #dc2626;
+            font-weight: 600;
+        }
+
+        .removal-no {
+            color: #666;
+        }
+
         .footer {
             text-align: center;
             padding: 2rem;
@@ -434,6 +476,33 @@
                 </div>
             </div>
 
+            <div id="allItemsSection" style="display: none;">
+                <h3 class="section-title">All Detected Line Items</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Description</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                                <th>Removal?</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allItemsTable">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="rawTextSection" style="display: none;">
+                <h3 class="section-title">Raw PDF Text (Debug)</h3>
+                <button class="toggle-btn" id="toggleRawText">Show Raw Text</button>
+                <div class="raw-text-container" id="rawTextContainer" style="display: none;">
+                    <pre id="rawText"></pre>
+                </div>
+            </div>
+
             <button class="reset-btn" id="resetBtn">Upload Another PDF</button>
         </div>
     </main>
@@ -452,10 +521,22 @@
         const errorMessage = document.getElementById('errorMessage');
         const resetBtn = document.getElementById('resetBtn');
 
+        const toggleRawText = document.getElementById('toggleRawText');
+        const rawTextContainer = document.getElementById('rawTextContainer');
+
         // Event listeners
         browseBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', handleFileSelect);
         resetBtn.addEventListener('click', resetForm);
+        toggleRawText.addEventListener('click', () => {
+            if (rawTextContainer.style.display === 'none') {
+                rawTextContainer.style.display = 'block';
+                toggleRawText.textContent = 'Hide Raw Text';
+            } else {
+                rawTextContainer.style.display = 'none';
+                toggleRawText.textContent = 'Show Raw Text';
+            }
+        });
 
         // Drag and drop
         dropZone.addEventListener('dragover', (e) => {
@@ -579,6 +660,40 @@
             } else {
                 unmatchedSection.style.display = 'none';
             }
+
+            // Populate all items table
+            const allItemsSection = document.getElementById('allItemsSection');
+            const allItemsTable = document.getElementById('allItemsTable');
+            
+            if (data.all_line_items && data.all_line_items.length > 0) {
+                allItemsSection.style.display = 'block';
+                allItemsTable.innerHTML = '';
+                
+                data.all_line_items.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${escapeHtml(item.line_number)}</td>
+                        <td>${escapeHtml(item.description)}</td>
+                        <td>${formatNumber(item.quantity)}</td>
+                        <td>${escapeHtml(item.unit)}</td>
+                        <td class="${item.is_removal ? 'removal-yes' : 'removal-no'}">${item.is_removal ? 'Yes' : 'No'}</td>
+                    `;
+                    allItemsTable.appendChild(row);
+                });
+            } else {
+                allItemsSection.style.display = 'none';
+            }
+
+            // Show raw text section
+            const rawTextSection = document.getElementById('rawTextSection');
+            const rawText = document.getElementById('rawText');
+            
+            if (data.raw_text_preview) {
+                rawTextSection.style.display = 'block';
+                rawText.textContent = data.raw_text_preview;
+            } else {
+                rawTextSection.style.display = 'none';
+            }
         }
 
         function resetForm() {
@@ -586,6 +701,10 @@
             fileName.textContent = '';
             results.classList.remove('show');
             errorMessage.classList.remove('show');
+            document.getElementById('allItemsSection').style.display = 'none';
+            document.getElementById('rawTextSection').style.display = 'none';
+            rawTextContainer.style.display = 'none';
+            toggleRawText.textContent = 'Show Raw Text';
         }
 
         function formatNumber(num) {
